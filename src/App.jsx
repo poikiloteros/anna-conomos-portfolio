@@ -227,7 +227,7 @@ export default function App() {
         </div>
 
         {/* FIXED: Padding reduced on mobile, minimum font clamp reduced to 2.5rem, gap adjustments to avoid hand clipping */}
-        <div className="relative w-full md:w-1/2 h-full bg-transparent md:bg-[var(--sand)] flex flex-col justify-start md:justify-center pt-[15vh] md:pt-0 px-6 pl-8 md:pl-48 lg:px-16 z-20 md:z-auto pointer-events-none md:pointer-events-auto">
+        <div className="relative w-full md:w-1/2 h-full bg-transparent md:bg-[var(--sand)] flex flex-col justify-start md:justify-center pt-[15vh] md:pt-0 px-6 pl-8 md:pl-32 lg:px-16 z-20 md:z-auto pointer-events-none md:pointer-events-auto">
           <p className="font-sans-heavy uppercase tracking-widest text-[0.6rem] md:text-sm text-[var(--charcoal)]/80 md:text-[var(--charcoal)]/50 mb-3 md:mb-8 drop-shadow-sm md:drop-shadow-none">
             From 2005 to Today
           </p>
