@@ -63,10 +63,14 @@ const InteractiveProp = ({
   imageFilters = ['', '', ''],
   zIndex = 'z-0',
   imageClassName = 'object-contain',
-  disableBreathing = false
+  disableBreathing = false,
+  sequenceMode = 'ping-pong',
+  frameSpeed = 300
 }) => {
   const [isActive, setIsActive] = useState(false);
   const [frame, setFrame] = useState(0); 
+  const [isCycling, setIsCycling] = useState(false);
+  const [hasPlayedThisActivation, setHasPlayedThisActivation] = useState(false);
   const propRef = useRef(null);
 
   useEffect(() => {
@@ -81,15 +85,47 @@ const InteractiveProp = ({
     return () => observer.disconnect();
   }, [isActive]);
 
+  // Reset activation flag when inactive so it can be triggered again later
+  useEffect(() => {
+    if (!isActive) {
+      setHasPlayedThisActivation(false);
+    }
+  }, [isActive]);
+
+  // Cycle trigger logic
+  useEffect(() => {
+    if (sequenceMode === 'cycle' && isActive && frame === 0 && !isCycling && !hasPlayedThisActivation) {
+      setIsCycling(true);
+      setHasPlayedThisActivation(true);
+    }
+  }, [isActive, sequenceMode, frame, isCycling, hasPlayedThisActivation]);
+
+  // Ping-Pong Execution Logic (Interruptible)
   useEffect(() => {
     let timer;
-    if (isActive && frame < 2) {
-      timer = setTimeout(() => setFrame(f => f + 1), 300);
-    } else if (!isActive && frame > 0) {
-      timer = setTimeout(() => setFrame(f => f - 1), 300);
+    if (sequenceMode === 'ping-pong') {
+      if (isActive && frame < 2) {
+        timer = setTimeout(() => setFrame(f => f + 1), frameSpeed);
+      } else if (!isActive && frame > 0) {
+        timer = setTimeout(() => setFrame(f => f - 1), frameSpeed);
+      }
     }
     return () => clearTimeout(timer);
-  }, [isActive, frame]);
+  }, [isActive, frame, sequenceMode, frameSpeed]);
+
+  // Cycle Execution Logic (FIX: Un-interruptible by isActive scroll events to prevent freezing mid-cycle)
+  useEffect(() => {
+    let timer;
+    if (sequenceMode === 'cycle' && isCycling) {
+      if (frame === 0) timer = setTimeout(() => setFrame(1), frameSpeed);
+      else if (frame === 1) timer = setTimeout(() => setFrame(2), frameSpeed);
+      else if (frame === 2) timer = setTimeout(() => {
+        setFrame(0);
+        setIsCycling(false);
+      }, frameSpeed);
+    }
+    return () => clearTimeout(timer);
+  }, [isCycling, frame, sequenceMode, frameSpeed]); // Notice `isActive` is intentionally absent here!
 
   return (
     <div 
@@ -100,8 +136,7 @@ const InteractiveProp = ({
         ${isActive ? `prop-active ${activeClassName}` : `prop-idle ${idleClassName}`} 
         ${className}`}
     >
-      {/* Hardware Acceleration classes added to prevent Safari layout thrashing. 
-          Conditionally applying the breathing wrapper and shadow to allow for flat poster elements. */}
+      {/* Hardware Acceleration classes added to prevent Safari layout thrashing. */}
       <div className={`relative w-full h-full transform-gpu will-change-transform ${!disableBreathing ? 'prop-breathe-wrapper drop-shadow-[0_20px_25px_rgba(0,0,0,0.15)]' : ''}`}>
         {images.map((img, idx) => (
           <img 
@@ -112,7 +147,6 @@ const InteractiveProp = ({
               filter: imageFilters[idx],
               opacity: frame === idx ? 1 : 0, 
             }}
-            /* Custom imageClassName applied here */
             className={`absolute inset-0 w-full h-full transition-opacity duration-0 transform-gpu will-change-opacity ${imageClassName}`} 
           />
         ))}
@@ -129,7 +163,6 @@ export default function App() {
 
   useEffect(() => { setTimeout(() => setIsLoaded(true), 100); }, []);
 
-  // Updated to an animated frame sequence
   const annaFrames = [
     "https://res.cloudinary.com/dp3g7dyx9/image/upload/v1773611896/Portrait_1_xfwgp4.webp",
     "https://res.cloudinary.com/dp3g7dyx9/image/upload/v1773611896/Portrait_3_rxhfj1.webp",
@@ -151,8 +184,6 @@ export default function App() {
     "https://res.cloudinary.com/dp3g7dyx9/image/upload/v1773393069/mask_eyes_closed_y2m6hh.webp", 
     "https://res.cloudinary.com/dp3g7dyx9/image/upload/v1773393071/mask_eyes_open_apgteh.webp" 
   ];
-  
-  // Updated with the new Frame assets
   const frameFrames = [
     "https://res.cloudinary.com/dp3g7dyx9/image/upload/v1773611192/frame_1_poldkp.webp", 
     "https://res.cloudinary.com/dp3g7dyx9/image/upload/v1773611193/Frame_2_med8qz.webp",
@@ -163,9 +194,9 @@ export default function App() {
     <div className="min-h-screen selection:bg-[var(--charcoal)] selection:text-[var(--sand)]">
       <style>{styles}</style>
       
-      {/* Navigation */}
+      {/* Navigation (FIXED: A.C. initials removed, spacer added to keep hamburger menu right-aligned) */}
       <nav className="fixed top-0 w-full z-50 flex justify-between items-center px-6 py-4 bg-[var(--sand)]/80 backdrop-blur-md border-b border-structural/10 md:mix-blend-difference md:bg-transparent md:backdrop-blur-none md:border-none md:text-white transition-all">
-        <div className="font-sans-heavy text-xl tracking-tighter text-[var(--charcoal)] md:text-white">A.C.</div>
+        <div className="w-10"></div>
         <button className="md:hidden text-[var(--charcoal)]"><Menu size={28} /></button>
         <ul className="hidden md:flex gap-12 text-xs font-sans-heavy uppercase tracking-[0.2em]">
           {['Home', 'Schools', 'Museums', 'Events'].map(item => (
@@ -184,26 +215,28 @@ export default function App() {
           </h1>
         </div>
 
-        {/* Updated: Anna's portrait is now an animated stop-motion component without the breathing effect */}
         <div className="absolute bottom-0 right-[-10%] md:right-0 md:relative w-[90%] md:w-1/2 h-[75%] md:h-full bg-transparent md:bg-[var(--olive)] flex items-end justify-center md:border-r-2 border-structural md:pt-20 z-10 md:z-auto pointer-events-auto">
           <InteractiveProp 
             images={annaFrames} 
             className="w-full h-full"
-            imageClassName="object-cover object-bottom duotone-print scale-[1.1] md:scale-100 origin-bottom-right md:origin-bottom opacity-90 md:opacity-100"
+            imageClassName="object-contain object-bottom duotone-print scale-[1.1] md:scale-100 origin-bottom-right md:origin-bottom opacity-90 md:opacity-100"
             disableBreathing={true}
+            sequenceMode="cycle"
+            frameSpeed={600}
           />
         </div>
 
-        <div className="relative w-full md:w-1/2 h-full bg-transparent md:bg-[var(--sand)] flex flex-col justify-start md:justify-center pt-[20vh] md:pt-0 px-6 pl-14 md:pl-12 lg:px-16 z-20 md:z-auto pointer-events-none md:pointer-events-auto">
+        {/* FIXED: Padding reduced on mobile, minimum font clamp reduced to 2.5rem, gap adjustments to avoid hand clipping */}
+        <div className="relative w-full md:w-1/2 h-full bg-transparent md:bg-[var(--sand)] flex flex-col justify-start md:justify-center pt-[15vh] md:pt-0 px-6 pl-8 md:pl-12 lg:px-16 z-20 md:z-auto pointer-events-none md:pointer-events-auto">
           <p className="font-sans-heavy uppercase tracking-widest text-[0.6rem] md:text-sm text-[var(--charcoal)]/80 md:text-[var(--charcoal)]/50 mb-3 md:mb-8 drop-shadow-sm md:drop-shadow-none">
             From 2005 to Today
           </p>
-          <h2 className="font-serif-display uppercase text-[clamp(3.7rem,12vw,6.5rem)] md:text-[clamp(3.2rem,5vw,5.5rem)] leading-[0.85] tracking-tight text-[var(--charcoal)] mb-8 md:mb-12 drop-shadow-sm md:drop-shadow-none">
+          <h2 className="font-serif-display uppercase text-[clamp(2.5rem,11vw,6.5rem)] md:text-[clamp(3.2rem,5vw,5.5rem)] leading-[0.85] tracking-tight text-[var(--charcoal)] mb-6 md:mb-12 drop-shadow-sm md:drop-shadow-none">
             Performance<br/>
             Story<br/>
             Teller
           </h2>
-          <div className="flex gap-4">
+          <div className="flex gap-4 mt-2 md:mt-0">
             <span className="inline-block bg-[var(--charcoal)] text-[var(--sand)] px-4 py-2 md:py-1 text-xs font-sans-heavy uppercase tracking-widest pointer-events-auto shadow-md md:shadow-none">
               Live
             </span>
@@ -281,7 +314,8 @@ export default function App() {
 
         <div className="flex-1 flex flex-col md:flex-row relative">
           
-          <div className="sticky top-[15vh] md:top-0 h-[60vh] md:h-auto w-full md:w-1/2 md:absolute md:right-0 flex items-center justify-center z-0 opacity-40 md:opacity-100 pointer-events-none md:pointer-events-auto bg-transparent md:bg-[var(--slate)]/10">
+          {/* FIXED: Removed mobile sticky overlap. Frame is now prominently stacked on top for mobile at 100% opacity */}
+          <div className="relative md:absolute md:inset-y-0 md:right-0 h-[45vh] md:h-auto w-full md:w-1/2 flex items-center justify-center z-10 opacity-100 pointer-events-none md:pointer-events-auto bg-[var(--slate)]/15 md:bg-[var(--slate)]/10">
             <InteractiveProp 
               images={frameFrames} 
               className="w-[280px] md:w-[450px] h-[360px] md:h-[580px]" 
@@ -290,7 +324,7 @@ export default function App() {
             />
           </div>
 
-          <div className="w-full md:w-1/2 flex flex-col z-10 md:border-r-2 border-[var(--sand)]/20 -mt-[60vh] md:mt-0">
+          <div className="w-full md:w-1/2 flex flex-col z-20 md:border-r-2 border-[var(--sand)]/20">
             {[
               { title: "Schools", desc: "Storytelling brings the curriculum to life providing an educational, entertaining and memorable experience for pupils." },
               { title: "Museums", desc: "Unique and tailor-made performances designed to animate museum and gallery artifacts and displays." },
